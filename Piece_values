@@ -1,0 +1,15 @@
+Possible Values per Cell
+
+Pieces (- for enemies)
+0 - Empty
+1 - Scout
+2 - Miner
+3 - General
+4 - Marshall
+5 - Spy
+6 - Bomb
+7 - Flag
+
+Enemy specifics
+-8 - Unknown
+-9 - (Not flag nor bomb)
