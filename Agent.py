@@ -1,4 +1,14 @@
 import numpy as np
+
+def one_hot(lst, size):
+    return np.eye(size)[np.array([lst]).reshape(-1)]
+
+
+def one_hot_to_idx(one_hot_lst):
+    print(np.where(one_hot_lst))
+    return [ np.where(r==1)[0][0] for r in one_hot_lst[0] ]
+
+
 class Agent:
     
     def __init__(self):
@@ -8,17 +18,19 @@ class Agent:
         actions = self.getActions(state)
         return best_action
 
-    def setup(self):
-        setup = np.chararray((3,8))
-        setup[0,0] = 'F'
-        setup[0,1] = 'B'
-        setup[0,2] = '3'
-        setup[0,3] = '3'
-        setup[0,4] = '2'
+    def setup(self, pieces):
+        setup = np.zeros((3,8))
+        setup[0][0] = pieces[9]
+        setup[0][1] = pieces[8]
+        setup[0][2] = pieces[3]
+        setup[0][3] = pieces[2]
+        setup[0][4] = pieces[0]
         
-        setup[1,0] = 'B'
-        setup[1,1] = 'S'
-        setup[1,2] = '2'
-        setup[1,3] = '9'
-        setup[1,4] = '10'
+        setup[1][0] = pieces[7]
+        setup[1][1] = pieces[6]
+        setup[1][2] = pieces[1]
+        setup[1][3] = pieces[4]
+        setup[1][4] = pieces[5]
         return setup
+
+
