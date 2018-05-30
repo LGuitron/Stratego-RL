@@ -14,12 +14,12 @@ class Agent:
     def __init__(self):
         pass
     
-    def play(self, state):
+    def play(self, state, actions, reward):
         actions = self.getActions(state)
         return best_action
 
-    def setup(self, pieces):
-        setup = np.zeros((3,8))
+    def setup(self, pieces, setup_area):
+        setup = np.zeros(setup_area)
         setup[0][0] = pieces[9]
         setup[0][1] = pieces[8]
         setup[0][2] = pieces[3]
@@ -28,7 +28,7 @@ class Agent:
         
         setup[1][0] = pieces[7]
         setup[1][1] = pieces[6]
-        setup[1][2] = pieces[1]
+        setup[2][2] = pieces[1]
         setup[1][3] = pieces[4]
         setup[1][4] = pieces[5]
         return setup
