@@ -24,40 +24,35 @@ class Environment:
                                     self.impassable  : {"movable": False, "print":'  X  '}
                                 }
 
-        self.board          = np.zeros(self.board_size) 
-        self.board_p1       = np.zeros(self.board_size) 
-        self.board_p2       = np.zeros(self.board_size)
-        self.prev_board_p1  = None
-        self.prev_board_p2  = None
-        
-        self.c_player = None          # Current player
-        self.c_board  = None          # Board from the current player's perspective
+        self.board          = np.zeros(self.board_size, dtype=np.int32) 
+        #self.board_p1       = np.zeros(self.board_size, dtype=np.int32) 
+        #self.board_p2       = np.zeros(self.board_size, dtype=np.int32)
+        #self.prev_board_p1  = None
+        #self.prev_board_p2  = None
 
-        self.p1             = p1
-        self.p2             = p2
-        self.turn           = 1       # 1 for P1, -1 for P2
+        # Values for P1 and P2 in arrays
+        self.rewards               = np.zeros(2)
+        self.players               = [p1, p2]
+        self.player_boards         = [np.zeros(self.board_size, dtype=np.int32) , np.zeros(self.board_size, dtype=np.int32)]
+        self.prev_player_boards    = [None, None]
+
+        #self.p1             = p1
+        #self.p2             = p2
+        
+        self.turn            = 0                     # True for P1, False for P2
+        #self.c_player       = self.p1               # Current player
+        #self.c_board        = self.board_p1         # Board from the current player's perspective
+        #self.opp_board      = self.board_p2         # Board for the opponent
 
         self.impassable_coords = [(3,2),(4,2),(3,5),(4,5)]
         self.pieces            = [1,2,2,3,3,9,10,99,99,101]
-        
-        
 
-        
         #Validate p1 & p2 setup
-        
-        #self.init_player_boards()
         self.init_boards()
-        self.start_turn()
-        
-        self.print_board(self.board)
-        self.print_board(self.board_p1)
-        self.print_board(self.board_p2)
     
     def validate_setup(self):
         pass
 
-        
-    #def init_player_boards(self):
     def init_boards(self):   
          
          
@@ -71,80 +66,56 @@ class Environment:
         for i in range(self.setup_area[0]):
             for j in range(self.board_size[1]):
                 if(self.board[i][j]!=0):
-                    self.board_p1[i][j] = self.board[i][j]
-                    self.board_p2[i][j] = self.unknown_key
+                    self.player_boards[0][i][j] = self.board[i][j]
+                    self.player_boards[1][i][j] = self.unknown_key
                     
         # P2 perspective
         for i in range(self.board_size[0] - self.setup_area[0],self.board_size[0]):
             for j in range(self.board_size[1]):
                 if(self.board[i][j]!=0):
-                    self.board_p1[i][j] = self.unknown_key
-                    self.board_p2[i][j] = -self.board[i][j]
+                    self.player_boards[0][i][j] = self.unknown_key
+                    self.player_boards[1][i][j] = -self.board[i][j]
     
         # Place impassables
         for coord in self.impassable_coords:
             x , y = coord
             self.board[x][y]    = self.impassable
-            self.board_p1[x][y] = self.impassable
-            self.board_p2[x][y] = self.impassable
-    
-    # Set member variables required for this turn
-    def start_turn(self):
-    
-        if(self.turn==1):
-            self.c_player = self.p1
-            self.c_board  = self.board_p1
-        else:
-            self.c_player = self.p2
-            self.c_board  = self.board_p2
+            self.player_boards[0][x][y] = self.impassable
+            self.player_boards[0][x][y] = self.impassable
 
     # Request an action from the current player
-    def req_action(self, reward):
+    def req_action(self, actions, reward):
+        selected_action = self.players[self.turn].play(self.player_boards[self.turn], actions, reward)
         
-        if(self.turn==1):
-            self.c_player = self.p1
-            self.c_board  = self.board_p1
-        else:
-            self.c_player = self.p2
-            self.c_board  = self.board_p2
-            
-        actions = self.action_space()
-        action_idx = self.c_player.play(self.c_board, actions, reward)
-        
-        # Environment has to check if best action is possible
-        if action_idx >= len(actions):
+        if selected_action not in actions:
             print("Invalid Move")
-
-        return actions[action_idx]
-
-    
         
-    
+        return selected_action
 
+    # Get all possible states for current position
     def action_space(self):
         
         movements = []
 
         for i in range(self.board_size[0]):
             for j in range(self.board_size[1]):
-                c_cell = self.c_board[i][j]
-                if(self.cell_properties[c_cell]['movable']):
-                    movements += self.piece_movements(i,j)
-
+                movements += self.piece_movements(i,j)
         return movements
         
     # Find the possible movements for a given piece
     # Return List of Tuples containing ((x0,y0), (x1,y1), new_val on (x1,y1))
     def piece_movements(self, i, j):
-        
-        c_cell = self.board[i][j]
+
+        c_cell = self.player_boards[self.turn][i][j]
         source = (i,j)
         movements = []
 
         dirs = [-1, 0, 1, 0]
+        
+        if((c_cell <= 0) or not self.cell_properties[c_cell]['movable']):
+            return movements
 
-
-        if "long_move" in self.cell_properties[c_cell]:
+        elif "long_move" in self.cell_properties[c_cell]:
             
             for k in range(4):
                 
@@ -154,9 +125,15 @@ class Environment:
                     x, y = i + step_size*dirs[k], j + step_size*dirs[(k+1) % 4]
                     
                     # Check boundaries, and target cell
-                    if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.c_board[x][y] > 0):
+                    if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0):
                         break
-                    movements.append((source, (x,y), c_cell))
+                    
+                    movements.append((source, (x,y)))
+                    
+                    # Attacking opponent piece
+                    if self.player_boards[self.turn][x][y] < 0:
+                        break
+                    
                     step_size += 1
 
         else:
@@ -164,47 +141,94 @@ class Environment:
                 x, y = i + dirs[k], j + dirs[(k+1) % 4]
                 
                 # Check boundaries, and target cell
-                if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.c_board[x][y] > 0):
+                if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0):
                     continue 
-                movements.append((source, (x,y), c_cell))
+                movements.append((source, (x,y)))
         
 
         return movements
 
     # Returns reward based on current board
     # and return if game is over or not
-    def calc_reward(self):
+    def calc_reward(self, action_size):
         
         # Check if current player lost
-        if (101 not in self.c_board):
+        # Lost Flag or No amoves available
+        if (101 not in self.player_boards[self.turn] or action_size==0):
+            if(101 not in self.player_boards[self.turn]):
+                pass
+                #print("LOST FLAG")
+            else:
+                pass
+                #print("NO MORE MOVES")
+                
+            if(self.turn==1):
+                pass
+                #print("P2 won")
+            else:
+                pass
+                #print("P1 won")
             return -1000, True
         
+        
+        
         #Calculate the reward of the current board
-        reward = 0
+        reward = -1
         
         
         return reward, False
 
     
-    def update(self, best_action):
-        self.start_turn()
+    def update(self, selected_action):
         self.save_board()
-        self.update_board(best_action)                  # Update global board
-        self.update_current_board(best_action)          # Update current player board
-        self.update_opp_board(best_action)              # Update opponent's board 
-        self.end_turn()
+        self.update_boards(selected_action)                  # Update global board
+        self.next_turn()
     
 
-    
-    
-    def save_board(self):
-        #if(self.turn):
-        self.prev_board_p1 = deepcopy(self.board_p1)
-        #else:
-        self.prev_board_p2 = deepcopy(self.board_p2)
+    def update_boards(self, selected_action):
+        source = selected_action[0]
+        dest = selected_action[1]
+        piece_player = self.board[source]
+        piece_opp = self.board[dest]
         
-    def end_turn(self):
-        self.turn *= -1
+        
+        self.board[source]    = 0
+        self.player_boards[0][source] = 0
+        self.player_boards[1][source] = 0
+
+        # Current player wins (against opponent or enemy flag or miner diffuses bomb)
+        if(abs(piece_player) > abs(piece_opp)                    # General combat, or place occupation
+           or abs(piece_opp)==101                                 # Against flag
+           or(abs(piece_player)==3 and abs(piece_opp)==99)        # Miner diffuses bomb 
+           or(abs(piece_player)==1 and abs(piece_opp)==10)):      # Spy vs Marshall
+            
+            
+            self.board[dest]     =  piece_player
+            self.player_boards[self.turn][dest]   =  abs(piece_player)
+            
+            # Moved to empty space
+            if(piece_opp==0):
+                self.player_boards[1-self.turn][dest] =  self.unknown_key
+            else:
+                self.player_boards[1-self.turn][dest] = -abs(piece_player)
+            
+        # Opponent wins
+        elif(abs(piece_player) < abs(piece_opp)):
+            self.board[dest]                      =  piece_opp
+            self.player_boards[self.turn][dest]   =  -abs(piece_opp)
+            
+        # Pieces have same value
+        else:
+            self.board[dest]                        =  0
+            self.player_boards[self.turn][dest]     =  0
+            self.player_boards[1-self.turn][dest]   =  0
+
+    def save_board(self):
+        self.prev_player_boards[self.turn] = deepcopy(self.player_boards[self.turn])
+        self.prev_player_boards[1-self.turn] = deepcopy(self.player_boards[1-self.turn])
+        
+    def next_turn(self):
+        self.turn = 1 - self.turn
 
     def print_board(self, board):
         print()
@@ -220,24 +244,38 @@ class Environment:
         print()
 
 p1 = Agent()
-p2 = Agent()
-stratego = Environment(p1, p2)
+p2 = Agent(is_p1 = False)
 
-#stratego.board[:3 ,:] = p1.setup() 
-#stratego.board[5:8,:] = p2.setup()
+# game_stats[0] - P1 wins
+# game_stats[1] - P2 wins
+game_stats = np.zeros(2)
+num_games = 100
+for i in range(num_games):
 
-
+    stratego = Environment(p1, p2)    
     
+    while True:
+        '''
+        print("GEN")
+        stratego.print_board(stratego.board)
+        print("P1")
+        stratego.print_board(stratego.board_p1)
+        print("P2")
+        stratego.print_board(stratego.board_p2)
+        '''
 
+        actions = stratego.action_space()
+        reward, done = stratego.calc_reward(len(actions))
+        if(done):
+            if(stratego.turn==1):
+                game_stats[0] += 1
+            else:
+                game_stats[1] += 1
+            # Update both p1 & p2
+            stratego.print_board(stratego.board)
+            break
+        
+        selected_action = stratego.req_action(actions, reward)
+        stratego.update(selected_action)
 
-#stratego.print_board()
-#exit()
-while True:
-    
-    reward, done = stratego.calc_reward()
-    if(done):
-        # Update both p1 & p2
-        break
-    
-    best_action = stratego.req_action(reward)
-    stratego.update(best_action)
+print(game_stats/num_games)

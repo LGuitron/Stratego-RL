@@ -1,4 +1,8 @@
 import numpy as np
+import keras
+from keras.models import Sequential
+from keras.layers import Dense
+
 
 def one_hot(lst, size):
     return np.eye(size)[np.array([lst]).reshape(-1)]
@@ -11,26 +15,63 @@ def one_hot_to_idx(one_hot_lst):
 
 class Agent:
     
-    def __init__(self):
-        pass
+    def __init__(self, is_random=True, is_p1 = True):
+        self.is_random = is_random
+        self.is_p1 = is_p1
+        self.raw_model = Sequential()
+        self.raw_model.add(Dense(32, input_shape=(68,1)))
+        self.raw_model.add(Dense(16))
+        self.raw_model.add(Dense(1))
     
     def play(self, state, actions, reward):
-        actions = self.getActions(state)
-        return best_action
+        #
+        # Inputs
+        #
+        #
+        # state: current board
+        #
+        # actions: List of tuples that represent possible actions
+        #
+        # reward: Reward from last action
+        if self.is_random:
+            return actions[np.random.randint(len(actions))]
+
+        else:
+            pass
+    
+    
+    
 
     def setup(self, pieces, setup_area):
         setup = np.zeros(setup_area)
-        setup[0][0] = pieces[9]
-        setup[0][1] = pieces[8]
-        setup[0][2] = pieces[3]
-        setup[0][3] = pieces[2]
-        setup[0][4] = pieces[0]
+    
+        if(self.is_p1):
+            setup[0][0] = pieces[9]
+            setup[0][1] = pieces[8]
+            setup[0][2] = pieces[3]
+            setup[0][3] = pieces[2]
+            setup[0][4] = pieces[0]
+            
+            setup[1][0] = pieces[7]
+            setup[1][1] = pieces[6]
+            setup[2][3] = pieces[1]
+            setup[1][3] = pieces[4]
+            setup[1][4] = pieces[5]
         
-        setup[1][0] = pieces[7]
-        setup[1][1] = pieces[6]
-        setup[2][2] = pieces[1]
-        setup[1][3] = pieces[4]
-        setup[1][4] = pieces[5]
+        else:
+            setup[2][0] = pieces[9]
+            setup[2][1] = pieces[8]
+            setup[2][2] = pieces[3]
+            setup[2][3] = pieces[2]
+            setup[2][4] = pieces[0]
+            
+            setup[1][0] = pieces[7]
+            setup[1][1] = pieces[6]
+            setup[0][3] = pieces[1]
+            setup[1][3] = pieces[4]
+            setup[1][4] = pieces[5]
+        
+        
         return setup
 
 
