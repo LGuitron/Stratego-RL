@@ -81,7 +81,7 @@ class Environment:
             x , y = coord
             self.board[x][y]    = self.impassable
             self.player_boards[0][x][y] = self.impassable
-            self.player_boards[0][x][y] = self.impassable
+            self.player_boards[1][x][y] = self.impassable
 
     # Request an action from the current player
     def req_action(self, actions, reward):
@@ -115,6 +115,7 @@ class Environment:
         if((c_cell <= 0) or not self.cell_properties[c_cell]['movable']):
             return movements
 
+        # Long move for the scout
         elif "long_move" in self.cell_properties[c_cell]:
             
             for k in range(4):
@@ -125,7 +126,7 @@ class Environment:
                     x, y = i + step_size*dirs[k], j + step_size*dirs[(k+1) % 4]
                     
                     # Check boundaries, and target cell
-                    if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0):
+                    if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0 or self.player_boards[self.turn][x][y] == self.impassable):
                         break
                     
                     movements.append((source, (x,y)))
@@ -136,12 +137,13 @@ class Environment:
                     
                     step_size += 1
 
+        # Regular move for the rest of the pieces
         else:
             for k in range(4):
                 x, y = i + dirs[k], j + dirs[(k+1) % 4]
                 
                 # Check boundaries, and target cell
-                if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0):
+                if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0 or self.player_boards[self.turn][x][y] == self.impassable):
                     continue 
                 movements.append((source, (x,y)))
         
@@ -191,13 +193,25 @@ class Environment:
         piece_player = self.board[source]
         piece_opp = self.board[dest]
         
+        '''
+        if(piece_opp != 0):
+            print("Combat!!")
+            print("Source: " , source ," Dest: " , dest)
+            print("Initial Board")
+            self.print_board(self.board)
+            print("Player: " , self.turn, " - ", piece_player)
+            print("Player: " , self.turn-1, " - ", piece_opp)
+        '''
+        
         
         self.board[source]    = 0
         self.player_boards[0][source] = 0
         self.player_boards[1][source] = 0
 
+
+
         # Current player wins (against opponent or enemy flag or miner diffuses bomb)
-        if(abs(piece_player) > abs(piece_opp)                    # General combat, or place occupation
+        if(abs(piece_player) > abs(piece_opp)                     # General combat, or place occupation
            or abs(piece_opp)==101                                 # Against flag
            or(abs(piece_player)==3 and abs(piece_opp)==99)        # Miner diffuses bomb 
            or(abs(piece_player)==1 and abs(piece_opp)==10)):      # Spy vs Marshall
@@ -222,7 +236,13 @@ class Environment:
             self.board[dest]                        =  0
             self.player_boards[self.turn][dest]     =  0
             self.player_boards[1-self.turn][dest]   =  0
-
+        
+        
+        #if(piece_opp != 0):
+        #    print("Final Board")
+        #    self.print_board(self.board)
+            
+        
     def save_board(self):
         self.prev_player_boards[self.turn] = deepcopy(self.player_boards[self.turn])
         self.prev_player_boards[1-self.turn] = deepcopy(self.player_boards[1-self.turn])
@@ -245,25 +265,13 @@ class Environment:
 
 p1 = Agent()
 p2 = Agent(is_p1 = False)
-
-# game_stats[0] - P1 wins
-# game_stats[1] - P2 wins
 game_stats = np.zeros(2)
-num_games = 100
+num_games = 1000
 for i in range(num_games):
 
     stratego = Environment(p1, p2)    
     
     while True:
-        '''
-        print("GEN")
-        stratego.print_board(stratego.board)
-        print("P1")
-        stratego.print_board(stratego.board_p1)
-        print("P2")
-        stratego.print_board(stratego.board_p2)
-        '''
-
         actions = stratego.action_space()
         reward, done = stratego.calc_reward(len(actions))
         if(done):
@@ -272,7 +280,7 @@ for i in range(num_games):
             else:
                 game_stats[1] += 1
             # Update both p1 & p2
-            stratego.print_board(stratego.board)
+            #stratego.print_board(stratego.board)
             break
         
         selected_action = stratego.req_action(actions, reward)
