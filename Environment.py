@@ -13,40 +13,34 @@ class Environment:
 
         # Piece information                (Movable, Print Char, ...)
         self.cell_properties = {    0   : {"movable": False, "print":'  -  '},
-                                    1   : {"movable": True,  "print":'  S  '},
-                                    2   : {"movable": True,  "print":'  2  ', "long_move" : None},
-                                    3   : {"movable": True,  "print":'  3  '},  
-                                    9   : {"movable": True,  "print":'  9  '},  
-                                    10  : {"movable": True,  "print":'  10 '}, 
-                                    99  : {"movable": False, "print":'  B  '},
-                                    101 : {"movable": False, "print":'  F  '},
+                                    1   : {"movable": True,  "print":'  S  ', "grave_index":0},
+                                    2   : {"movable": True,  "print":'  2  ', "grave_index":1, "long_move" : None},
+                                    3   : {"movable": True,  "print":'  3  ', "grave_index":2},  
+                                    9   : {"movable": True,  "print":'  9  ', "grave_index":3},  
+                                    10  : {"movable": True,  "print":'  10 ', "grave_index":4}, 
+                                    99  : {"movable": False, "print":'  B  ', "grave_index":5},
+                                    101 : {"movable": False, "print":'  F  ', "grave_index":6},
                                     self.unknown_key : {"movable": False, "print":'  U  '},
                                     self.impassable  : {"movable": False, "print":'  X  '}
                                 }
 
         self.board          = np.zeros(self.board_size, dtype=np.int32) 
-        #self.board_p1       = np.zeros(self.board_size, dtype=np.int32) 
-        #self.board_p2       = np.zeros(self.board_size, dtype=np.int32)
-        #self.prev_board_p1  = None
-        #self.prev_board_p2  = None
 
         # Values for P1 and P2 in arrays
         self.rewards               = np.zeros(2)
         self.players               = [p1, p2]
         self.player_boards         = [np.zeros(self.board_size, dtype=np.int32) , np.zeros(self.board_size, dtype=np.int32)]
         self.prev_player_boards    = [None, None]
-
-        #self.p1             = p1
-        #self.p2             = p2
         
-        self.turn            = 0                     # True for P1, False for P2
-        #self.c_player       = self.p1               # Current player
-        #self.c_board        = self.board_p1         # Board from the current player's perspective
-        #self.opp_board      = self.board_p2         # Board for the opponent
+        self.turn            = 0                     # 0 for P1, 1 for P2
 
         self.impassable_coords = [(3,2),(4,2),(3,5),(4,5)]
         self.pieces            = [1,2,2,3,3,9,10,99,99,101]
 
+        # Initialize graveyard arrays for both players
+        self.unique_pieces = set(self.pieces)
+        self.graveyard         = [np.zeros(len(set(self.pieces))),np.zeros(len(set(self.pieces)))]
+        
         #Validate p1 & p2 setup
         self.init_boards()
     
@@ -193,17 +187,6 @@ class Environment:
         piece_player = self.board[source]
         piece_opp = self.board[dest]
         
-        '''
-        if(piece_opp != 0):
-            print("Combat!!")
-            print("Source: " , source ," Dest: " , dest)
-            print("Initial Board")
-            self.print_board(self.board)
-            print("Player: " , self.turn, " - ", piece_player)
-            print("Player: " , self.turn-1, " - ", piece_opp)
-        '''
-        
-        
         self.board[source]    = 0
         self.player_boards[0][source] = 0
         self.player_boards[1][source] = 0
@@ -223,25 +206,29 @@ class Environment:
             # Moved to empty space
             if(piece_opp==0):
                 self.player_boards[1-self.turn][dest] =  self.unknown_key
+
+            # Defeated opponent piece
+            # Reveal attacking piece to opponent, and update graveyard
             else:
                 self.player_boards[1-self.turn][dest] = -abs(piece_player)
-            
+                self.graveyard[1-self.turn][self.cell_properties[abs(piece_opp)]["grave_index"]] += 1
+                
         # Opponent wins
+        # Reveal attacked player, and update graveyard
         elif(abs(piece_player) < abs(piece_opp)):
             self.board[dest]                      =  piece_opp
             self.player_boards[self.turn][dest]   =  -abs(piece_opp)
+            self.graveyard[self.turn][self.cell_properties[abs(piece_player)]["grave_index"]] += 1
             
         # Pieces have same value
+        # Both of them die, update graveyards
         else:
             self.board[dest]                        =  0
             self.player_boards[self.turn][dest]     =  0
             self.player_boards[1-self.turn][dest]   =  0
+            self.graveyard[self.turn][self.cell_properties[abs(piece_player)]["grave_index"]] += 1
+            self.graveyard[1-self.turn][self.cell_properties[abs(piece_opp)]["grave_index"]] += 1
         
-        
-        #if(piece_opp != 0):
-        #    print("Final Board")
-        #    self.print_board(self.board)
-            
         
     def save_board(self):
         self.prev_player_boards[self.turn] = deepcopy(self.player_boards[self.turn])
@@ -251,7 +238,10 @@ class Environment:
         self.turn = 1 - self.turn
 
     def print_board(self, board):
+        
         print()
+        print(self.graveyard[0])
+        
         for i in range(board.shape[0]):
             row = "["
             for j in range(board.shape[1]):
@@ -261,12 +251,12 @@ class Environment:
                 else:
                     row += " -" + self.cell_properties[-board[i,j]]["print"][2:]
             print(row + "]")
+        print(self.graveyard[1])
         print()
-
 p1 = Agent()
 p2 = Agent(is_p1 = False)
 game_stats = np.zeros(2)
-num_games = 1000
+num_games = 1
 for i in range(num_games):
 
     stratego = Environment(p1, p2)    
@@ -279,8 +269,10 @@ for i in range(num_games):
                 game_stats[0] += 1
             else:
                 game_stats[1] += 1
+
             # Update both p1 & p2
-            #stratego.print_board(stratego.board)
+            stratego.print_board(stratego.board)
+            
             break
         
         selected_action = stratego.req_action(actions, reward)
