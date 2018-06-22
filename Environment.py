@@ -1,13 +1,16 @@
 import numpy as np
 from copy import deepcopy
 from Agent import Agent
+from TinyAgent import TinyAgent
 
 class Environment:
     
     def __init__(self, p1, p2):
         
-        self.board_size  = (8,8)
-        self.setup_area  = (3, self.board_size[1])
+        self.board_size = (4,4)
+        #self.board_size  = (8,8)
+        #self.setup_area  = (3, self.board_size[1])
+        self.setup_area  = (2, self.board_size[1])
         self.unknown_key = -102
         self.impassable  = 103
 
@@ -71,16 +74,18 @@ class Environment:
                     self.player_boards[1][i][j] = -self.board[i][j]
     
         # Place impassables
+        '''
         for coord in self.impassable_coords:
             x , y = coord
             self.board[x][y]    = self.impassable
             self.player_boards[0][x][y] = self.impassable
             self.player_boards[1][x][y] = self.impassable
+        '''
 
     # Request an action from the current player
     def req_action(self, actions, reward):
-        selected_action = self.players[self.turn].play(self.player_boards[self.turn], actions, reward)
-        
+        selected_action = self.players[self.turn].play([self.player_boards[self.turn] , self.graveyard] , actions, reward)
+        actions
         if selected_action not in actions:
             print("Invalid Move")
         
@@ -164,12 +169,12 @@ class Environment:
             else:
                 pass
                 #print("P1 won")
-            return -1000, True
+            return -1, True
         
         
         
         #Calculate the reward of the current board
-        reward = -1
+        reward = -0.001
         
         
         return reward, False
@@ -253,8 +258,10 @@ class Environment:
             print(row + "]")
         print(self.graveyard[1])
         print()
-p1 = Agent()
-p2 = Agent(is_p1 = False)
+#p1 = Agent()
+#p2 = Agent(is_p1 = False)
+p1 = TinyAgent()
+p2 = TinyAgent(is_p1 = False)
 game_stats = np.zeros(2)
 num_games = 1
 for i in range(num_games):
@@ -270,8 +277,10 @@ for i in range(num_games):
             else:
                 game_stats[1] += 1
 
-            # Update both p1 & p2
-            stratego.print_board(stratego.board)
+            # Send winning and losing rewards to the players
+            stratego.players[stratego.turn].receive_last_reward(reward)
+            stratego.players[1-stratego.turn].receive_last_reward(-reward)
+            #stratego.print_board(stratego.board)
             
             break
         

@@ -22,6 +22,18 @@ class Agent:
         self.raw_model.add(Dense(32, input_shape=(68,1)))
         self.raw_model.add(Dense(16))
         self.raw_model.add(Dense(1))
+        
+        self.piece_dict = {    0   : {"movable": False, "print":'  -  '},
+                                    1   : {"movable": True,  "print":'  S  ', "grave_index":0},
+                                    2   : {"movable": True,  "print":'  2  ', "grave_index":1, "long_move" : None},
+                                    3   : {"movable": True,  "print":'  3  ', "grave_index":2},  
+                                    9   : {"movable": True,  "print":'  9  ', "grave_index":3},  
+                                    10  : {"movable": True,  "print":'  10 ', "grave_index":4}, 
+                                    99  : {"movable": False, "print":'  B  ', "grave_index":5},
+                                    101 : {"movable": False, "print":'  F  ', "grave_index":6},
+                                    self.unknown_key : {"movable": False, "print":'  U  '},
+                                    self.impassable  : {"movable": False, "print":'  X  '}
+                                }
     
     def play(self, state, actions, reward):
         #
@@ -35,7 +47,8 @@ class Agent:
         # reward: Reward from last action
         if self.is_random:
             return actions[np.random.randint(len(actions))]
-
+            
+            
         else:
             pass
     
@@ -74,4 +87,14 @@ class Agent:
         
         return setup
 
+    # Receive reward for winning or losing the game
+    def receive_last_reward(self, reward):
+        pass
+        #print(reward)
+        
+        
+        
+        
+        
+        
 
