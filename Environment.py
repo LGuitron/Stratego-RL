@@ -169,12 +169,12 @@ class Environment:
             else:
                 pass
                 #print("P1 won")
-            return -1, True
+            return -1000, True
         
         
         
         #Calculate the reward of the current board
-        reward = -0.001
+        reward = -0.01
         
         
         return reward, False
@@ -258,12 +258,20 @@ class Environment:
             print(row + "]")
         print(self.graveyard[1])
         print()
+        
+from keras.models import load_model
+
+#Players:
 #p1 = Agent()
 #p2 = Agent(is_p1 = False)
 p1 = TinyAgent()
-p2 = TinyAgent(is_p1 = False)
+model = load_model('model.h5')        
+#model = None
+p2 = TinyAgent(is_random = False ,is_p1 = False, model=model)
+
 game_stats = np.zeros(2)
-num_games = 1
+num_games = 100
+
 for i in range(num_games):
 
     stratego = Environment(p1, p2)    
@@ -271,6 +279,7 @@ for i in range(num_games):
     while True:
         actions = stratego.action_space()
         reward, done = stratego.calc_reward(len(actions))
+        #stratego.print_board(stratego.board)
         if(done):
             if(stratego.turn==1):
                 game_stats[0] += 1
@@ -286,5 +295,7 @@ for i in range(num_games):
         
         selected_action = stratego.req_action(actions, reward)
         stratego.update(selected_action)
+
+p2.model.save('model.h5')
 
 print(game_stats/num_games)

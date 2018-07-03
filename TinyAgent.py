@@ -3,6 +3,7 @@ import keras
 from keras.models import Sequential, Model
 from keras.layers import Dense, Concatenate, Input
 
+
 def one_hot(lst, size):
     return np.eye(size)[np.array([lst]).reshape(-1)]
 
@@ -14,23 +15,26 @@ def one_hot_to_idx(one_hot_lst):
 
 class TinyAgent:
     
-    def __init__(self, is_random=True, is_p1 = True):
+    def __init__(self, is_random=True, is_p1 = True, model = None):
         self.is_random = is_random
         self.is_p1 = is_p1
-        self.state_model = Sequential()
-        self.state_model.add(Dense(32, input_shape=(68,1)))
-        self.state_model.add(Dense(16))
-        self.state_model.add(Dense(1))
+        self.model = model
         
-        self.input1 = Input(shape=(272,), name='board')
-        self.x1 = Dense(10, activation='relu')(self.input1)
-        self.input2 = Input(shape=(4,), name = 'action')
-        self.x2 = Dense(10, activation='relu')(self.input2)
-        self.conc = Concatenate()([self.x1, self.x2])                    # equivalent to added = keras.layers.add([x1, x2])
-        self.out = Dense(1)(self.conc)
-        self.model = Model(inputs = [self.input1, self.input2], outputs = self.out)
-        self.model.compile(loss='mean_squared_error',
-                           optimizer='adam')
+        self.prev_input = [None, None] 
+        
+        if not is_random:
+            if self.model == None:
+                self.input1 = Input(shape=(272,), name='board')
+                self.x1 = Dense(10, activation='relu')(self.input1)
+                self.input2 = Input(shape=(4,), name = 'action')
+                self.x2 = Dense(10, activation='relu')(self.input2)
+                self.conc = Concatenate()([self.x1, self.x2])                    # equivalent to added = keras.layers.add([x1, x2])
+                self.out = Dense(1)(self.conc)
+                self.model = Model(inputs = [self.input1, self.input2], outputs = self.out)
+                self.model.compile(loss='mean_squared_error',
+                                optimizer='adam')
+                self.model.save('model.h5')
+                
         
         self.piece_dict =       {   0    : 0, 
                                     1    : 1,
@@ -62,42 +66,48 @@ class TinyAgent:
         # actions: List of tuples that represent possible actions
         #
         # reward: Reward from last action
-        board = state[0]
-        graveyards = state[1]
-        graveyard_1 = graveyards[0]
-        graveyard_2 = graveyards[1]
         
-        
-        
-        # Transform the current board in one hot vector representation
-        one_hot_board = self.transform_board(board)
-        q_vals = []
-        
-        inputs = []
-        for action in actions:
-            action    = np.array(action)
-            action    = action.flatten()
-            print(one_hot_board.shape)
-            #input_var = np.array([one_hot_board, action])
-            #input_var = input_var.reshape((1,2))
-            #print(input_var.shape)
-            q_vals.append(self.model.predict({'board' : one_hot_board, 'action' : action}))
-            
-            
-            #inputs.append(input_var)
-            #inputs = np.array(inputs)
-    
-        #q_vals = self.model.predict(inputs)
 
-        print(q_vals)
-        exit()
+            
+        
+        
         
         if self.is_random:
             #print(reward)
             return actions[np.random.randint(len(actions))]
          
         else:
-            pass
+            board = state[0]
+            graveyards = state[1]
+            graveyard_1 = graveyards[0]
+            graveyard_2 = graveyards[1]
+            
+            
+            
+            # Transform the current board in one hot vector representation
+            one_hot_board = self.transform_board(board)
+            q_vals = np.zeros(len(actions))
+
+            for i, action in enumerate(actions):
+                action    = np.array(action)
+                action    = action.flatten()
+
+                one_hot_board = one_hot_board.reshape((1,272))
+                action        = action.reshape((1,4))
+                q_vals[i]     = self.model.predict(x = [one_hot_board,  action], batch_size=1)[0]
+        
+            max_reward = np.max(q_vals)
+        
+            # Update previous action whenever there is one
+            if(self.prev_input[0] is not None):
+                q_target = reward + max_reward
+                self.model.fit(x = [self.prev_input[0], np.array(self.prev_input[1]).flatten().reshape((1,4))], y = [q_target])
+                #self.model.fit(x = self.prev_input, y = [q_target])
+            
+            # Set up current input to be the previous one
+            self.prev_input = [one_hot_board, actions[np.argmax(q_vals)]]
+        
+            return actions[np.argmax(q_vals)]
     
     # Represent board as one hot vector
     def transform_board(self, board):
@@ -125,10 +135,13 @@ class TinyAgent:
 
     # Receive reward for winning or losing the game
     def receive_last_reward(self, reward):
-        pass
-        #print(reward)
         
-        
+        if(self.model is not None):
+            q_target = reward
+            self.model.fit(x = [self.prev_input[0], np.array(self.prev_input[1]).flatten().reshape((1,4))], y = [q_target])
+            self.prev_input = [None, None]
+            
+            self.model.save('model.h5')
         
         
         
