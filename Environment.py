@@ -169,6 +169,7 @@ class Environment:
             else:
                 pass
                 #print("P1 won")
+            print(self.board)
             return -1000, True
         
         
@@ -189,6 +190,7 @@ class Environment:
     def update_boards(self, selected_action):
         source = selected_action[0]
         dest = selected_action[1]
+        print(source, " - ", dest )
         piece_player = self.board[source]
         piece_opp = self.board[dest]
         
@@ -274,13 +276,16 @@ except:
 p2 = TinyAgent(is_random = False ,is_p1 = False, model=model)
 
 game_stats = np.zeros(2)
-num_games = 100
+num_games = 500
 
 for i in range(num_games):
 
     stratego = Environment(p1, p2)    
     
     while True:
+        
+        #print(stratego.board)
+        
         actions = stratego.action_space()
         reward, done = stratego.calc_reward(len(actions))
         #stratego.print_board(stratego.board)
@@ -291,8 +296,8 @@ for i in range(num_games):
                 game_stats[1] += 1
 
             # Send winning and losing rewards to the players
-            stratego.players[stratego.turn].receive_last_reward(reward)
-            stratego.players[1-stratego.turn].receive_last_reward(-reward)
+            stratego.players[stratego.turn].receive_last_reward(reward)        # Reward given to the losing player
+            stratego.players[1-stratego.turn].receive_last_reward(-reward)     # Reward given to the winning player
             #stratego.print_board(stratego.board)
             
             break

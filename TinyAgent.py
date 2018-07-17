@@ -1,7 +1,7 @@
 import numpy as np
 import keras
 from keras.models import Sequential, Model
-from keras.layers import Dense, Concatenate, Input, Conv3D
+from keras.layers import Dense, Concatenate, Input, Conv2D, Flatten
 from copy import deepcopy
 from keras.models import load_model
 
@@ -25,6 +25,9 @@ class TinyAgent:
         #self.step_update  = 100
         #self.current_step = 0 
         
+        self.discount = 0.9
+        self.epsilon  = 1.0
+        
         if not is_random:
             if self.model == None:
                 
@@ -43,9 +46,9 @@ class TinyAgent:
                 
                 
                 self.input1   = Input(shape=(4,4,17), name='board')
-                self.x1       = Conv3D(64, (2,2,17), strides=(1, 1, 17))
-                self.flat_x1  = 
-                self.dense_x1 =  Dense(10, activation='relu')(self.x1)
+                self.x1       = Conv2D(64, (2,2), strides=(1, 1))(self.input1)
+                self.flat_x1  = Flatten()(self.x1)
+                self.dense_x1 = Dense(10, activation='relu')(self.flat_x1)
                 
                 
                 self.input2 = Input(shape=(4,), name = 'action')
@@ -57,13 +60,13 @@ class TinyAgent:
                 self.x1 = Dense(10, activation='relu')(self.input1)
                 self.input2 = Input(shape=(4,), name = 'action')
                 self.x2 = Dense(10, activation='relu')(self.input2)
-                self.conc = Concatenate()([self.x1, self.x2])                    # equivalent to added = keras.layers.add([x1, x2])
+                '''
+                self.conc = Concatenate()([self.dense_x1, self.x2])                    # equivalent to added = keras.layers.add([x1, x2])
                 self.out = Dense(1)(self.conc)
                 self.model = Model(inputs = [self.input1, self.input2], outputs = self.out)
                 self.model.compile(loss='mean_squared_error',
                                 optimizer='adam')
                 self.model.save('model.h5')
-                '''
             
             #self.target_model = load_model('model.h5')
         
@@ -98,7 +101,9 @@ class TinyAgent:
         # actions: List of tuples that represent possible actions
         #
         # reward: Reward from last action
-        if self.is_random:
+        
+        # Random for random agent or epsilon greedy
+        if self.is_random or np.random.random() < self.epsilon:
             #print(reward)
             return actions[np.random.randint(len(actions))]
          
@@ -117,24 +122,26 @@ class TinyAgent:
             for i, action in enumerate(actions):
                 action    = np.array(action)
                 action    = action.flatten()
-
-                print(one_hot_board.shape)
-                exit()
-                
-                one_hot_board = one_hot_board.reshape((1,272))
+                #one_hot_board = one_hot_board.reshape((1,272))
+                one_hot_board = one_hot_board.reshape((1,4,4,17))
                 action        = action.reshape((1,4))
                 q_vals[i]     = self.model.predict(x = [one_hot_board,  action], batch_size=1)[0]
-        
+            
             max_reward = np.max(q_vals)
+        
+        
         
             # Update previous action whenever there is one
             if(self.prev_input[0] is not None):
-                q_target = reward + max_reward
-                self.model.fit(x = [self.prev_input[0], np.array(self.prev_input[1]).flatten().reshape((1,4))], y = [q_target])
+                q_target = reward + self.discount*max_reward
+                #print(self.prev_input[0].shape)
+                self.model.fit(x = [self.prev_input[0], np.array(self.prev_input[1]).flatten().reshape((1,4))], y = [q_target], batch_size = 1)
             
             # Set up current input to be the previous one
+            #if len(actions) > 0:
             self.prev_input = [one_hot_board, actions[np.argmax(q_vals)]]
         
+            print(self.prev_input[1])
             return actions[np.argmax(q_vals)]
     
     # Represent board as one hot vector
@@ -165,5 +172,6 @@ class TinyAgent:
         
         if(self.model is not None):
             q_target = reward
+            #print(self.prev_input[1])
             self.model.fit(x = [self.prev_input[0], np.array(self.prev_input[1]).flatten().reshape((1,4))], y = [q_target])
             self.prev_input = [None, None]
