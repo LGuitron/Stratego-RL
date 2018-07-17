@@ -265,8 +265,12 @@ from keras.models import load_model
 #p1 = Agent()
 #p2 = Agent(is_p1 = False)
 p1 = TinyAgent()
-model = load_model('model.h5')        
-#model = None
+
+try: 
+    model = load_model('model.h5')
+except:
+    model = None
+
 p2 = TinyAgent(is_random = False ,is_p1 = False, model=model)
 
 game_stats = np.zeros(2)
