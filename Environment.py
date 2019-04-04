@@ -1,52 +1,49 @@
 import numpy as np
 from copy import deepcopy
 from Agent import Agent
+from TinyAgent import TinyAgent
 
 class Environment:
     
     def __init__(self, p1, p2):
         
-        self.board_size  = (8,8)
-        self.setup_area  = (3, self.board_size[1])
+        self.board_size = (4,4)
+        #self.board_size  = (8,8)
+        #self.setup_area  = (3, self.board_size[1])
+        self.setup_area  = (2, self.board_size[1])
         self.unknown_key = -102
         self.impassable  = 103
 
         # Piece information                (Movable, Print Char, ...)
         self.cell_properties = {    0   : {"movable": False, "print":'  -  '},
-                                    1   : {"movable": True,  "print":'  S  '},
-                                    2   : {"movable": True,  "print":'  2  ', "long_move" : None},
-                                    3   : {"movable": True,  "print":'  3  '},  
-                                    9   : {"movable": True,  "print":'  9  '},  
-                                    10  : {"movable": True,  "print":'  10 '}, 
-                                    99  : {"movable": False, "print":'  B  '},
-                                    101 : {"movable": False, "print":'  F  '},
+                                    1   : {"movable": True,  "print":'  S  ', "grave_index":0},
+                                    2   : {"movable": True,  "print":'  2  ', "grave_index":1, "long_move" : None},
+                                    3   : {"movable": True,  "print":'  3  ', "grave_index":2},  
+                                    9   : {"movable": True,  "print":'  9  ', "grave_index":3},  
+                                    10  : {"movable": True,  "print":'  10 ', "grave_index":4}, 
+                                    99  : {"movable": False, "print":'  B  ', "grave_index":5},
+                                    101 : {"movable": False, "print":'  F  ', "grave_index":6},
                                     self.unknown_key : {"movable": False, "print":'  U  '},
                                     self.impassable  : {"movable": False, "print":'  X  '}
                                 }
 
         self.board          = np.zeros(self.board_size, dtype=np.int32) 
-        #self.board_p1       = np.zeros(self.board_size, dtype=np.int32) 
-        #self.board_p2       = np.zeros(self.board_size, dtype=np.int32)
-        #self.prev_board_p1  = None
-        #self.prev_board_p2  = None
 
         # Values for P1 and P2 in arrays
         self.rewards               = np.zeros(2)
         self.players               = [p1, p2]
         self.player_boards         = [np.zeros(self.board_size, dtype=np.int32) , np.zeros(self.board_size, dtype=np.int32)]
         self.prev_player_boards    = [None, None]
-
-        #self.p1             = p1
-        #self.p2             = p2
         
-        self.turn            = 0                     # True for P1, False for P2
-        #self.c_player       = self.p1               # Current player
-        #self.c_board        = self.board_p1         # Board from the current player's perspective
-        #self.opp_board      = self.board_p2         # Board for the opponent
+        self.turn            = 0                     # 0 for P1, 1 for P2
 
         self.impassable_coords = [(3,2),(4,2),(3,5),(4,5)]
         self.pieces            = [1,2,2,3,3,9,10,99,99,101]
 
+        # Initialize graveyard arrays for both players
+        self.unique_pieces = set(self.pieces)
+        self.graveyard         = [np.zeros(len(set(self.pieces))),np.zeros(len(set(self.pieces)))]
+        
         #Validate p1 & p2 setup
         self.init_boards()
     
@@ -77,16 +74,18 @@ class Environment:
                     self.player_boards[1][i][j] = -self.board[i][j]
     
         # Place impassables
+        '''
         for coord in self.impassable_coords:
             x , y = coord
             self.board[x][y]    = self.impassable
             self.player_boards[0][x][y] = self.impassable
-            self.player_boards[0][x][y] = self.impassable
+            self.player_boards[1][x][y] = self.impassable
+        '''
 
     # Request an action from the current player
     def req_action(self, actions, reward):
-        selected_action = self.players[self.turn].play(self.player_boards[self.turn], actions, reward)
-        
+        selected_action = self.players[self.turn].play([self.player_boards[self.turn] , self.graveyard] , actions, reward)
+        actions
         if selected_action not in actions:
             print("Invalid Move")
         
@@ -115,6 +114,7 @@ class Environment:
         if((c_cell <= 0) or not self.cell_properties[c_cell]['movable']):
             return movements
 
+        # Long move for the scout
         elif "long_move" in self.cell_properties[c_cell]:
             
             for k in range(4):
@@ -125,7 +125,7 @@ class Environment:
                     x, y = i + step_size*dirs[k], j + step_size*dirs[(k+1) % 4]
                     
                     # Check boundaries, and target cell
-                    if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0):
+                    if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0 or self.player_boards[self.turn][x][y] == self.impassable):
                         break
                     
                     movements.append((source, (x,y)))
@@ -136,12 +136,13 @@ class Environment:
                     
                     step_size += 1
 
+        # Regular move for the rest of the pieces
         else:
             for k in range(4):
                 x, y = i + dirs[k], j + dirs[(k+1) % 4]
                 
                 # Check boundaries, and target cell
-                if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0):
+                if(x >= self.board_size[0] or y >= self.board_size[1] or x < 0 or y < 0 or self.player_boards[self.turn][x][y] > 0 or self.player_boards[self.turn][x][y] == self.impassable):
                     continue 
                 movements.append((source, (x,y)))
         
@@ -168,12 +169,13 @@ class Environment:
             else:
                 pass
                 #print("P1 won")
+            print(self.board)
             return -1000, True
         
         
         
         #Calculate the reward of the current board
-        reward = -1
+        reward = -0.01
         
         
         return reward, False
@@ -188,16 +190,18 @@ class Environment:
     def update_boards(self, selected_action):
         source = selected_action[0]
         dest = selected_action[1]
+        print(source, " - ", dest )
         piece_player = self.board[source]
         piece_opp = self.board[dest]
-        
         
         self.board[source]    = 0
         self.player_boards[0][source] = 0
         self.player_boards[1][source] = 0
 
+
+
         # Current player wins (against opponent or enemy flag or miner diffuses bomb)
-        if(abs(piece_player) > abs(piece_opp)                    # General combat, or place occupation
+        if(abs(piece_player) > abs(piece_opp)                     # General combat, or place occupation
            or abs(piece_opp)==101                                 # Against flag
            or(abs(piece_player)==3 and abs(piece_opp)==99)        # Miner diffuses bomb 
            or(abs(piece_player)==1 and abs(piece_opp)==10)):      # Spy vs Marshall
@@ -209,20 +213,30 @@ class Environment:
             # Moved to empty space
             if(piece_opp==0):
                 self.player_boards[1-self.turn][dest] =  self.unknown_key
+
+            # Defeated opponent piece
+            # Reveal attacking piece to opponent, and update graveyard
             else:
                 self.player_boards[1-self.turn][dest] = -abs(piece_player)
-            
+                self.graveyard[1-self.turn][self.cell_properties[abs(piece_opp)]["grave_index"]] += 1
+                
         # Opponent wins
+        # Reveal attacked player, and update graveyard
         elif(abs(piece_player) < abs(piece_opp)):
             self.board[dest]                      =  piece_opp
             self.player_boards[self.turn][dest]   =  -abs(piece_opp)
+            self.graveyard[self.turn][self.cell_properties[abs(piece_player)]["grave_index"]] += 1
             
         # Pieces have same value
+        # Both of them die, update graveyards
         else:
             self.board[dest]                        =  0
             self.player_boards[self.turn][dest]     =  0
             self.player_boards[1-self.turn][dest]   =  0
-
+            self.graveyard[self.turn][self.cell_properties[abs(piece_player)]["grave_index"]] += 1
+            self.graveyard[1-self.turn][self.cell_properties[abs(piece_opp)]["grave_index"]] += 1
+        
+        
     def save_board(self):
         self.prev_player_boards[self.turn] = deepcopy(self.player_boards[self.turn])
         self.prev_player_boards[1-self.turn] = deepcopy(self.player_boards[1-self.turn])
@@ -231,7 +245,10 @@ class Environment:
         self.turn = 1 - self.turn
 
     def print_board(self, board):
+        
         print()
+        print(self.graveyard[0])
+        
         for i in range(board.shape[0]):
             row = "["
             for j in range(board.shape[1]):
@@ -241,41 +258,53 @@ class Environment:
                 else:
                     row += " -" + self.cell_properties[-board[i,j]]["print"][2:]
             print(row + "]")
+        print(self.graveyard[1])
         print()
+        
+from keras.models import load_model
 
-p1 = Agent()
-p2 = Agent(is_p1 = False)
+#Players:
+#p1 = Agent()
+#p2 = Agent(is_p1 = False)
+p1 = TinyAgent()
 
-# game_stats[0] - P1 wins
-# game_stats[1] - P2 wins
+try: 
+    model = load_model('model.h5')
+except:
+    model = None
+
+p2 = TinyAgent(is_random = False ,is_p1 = False, model=model)
+
 game_stats = np.zeros(2)
-num_games = 100
+num_games = 500
+
 for i in range(num_games):
 
     stratego = Environment(p1, p2)    
     
     while True:
-        '''
-        print("GEN")
-        stratego.print_board(stratego.board)
-        print("P1")
-        stratego.print_board(stratego.board_p1)
-        print("P2")
-        stratego.print_board(stratego.board_p2)
-        '''
-
+        
+        #print(stratego.board)
+        
         actions = stratego.action_space()
         reward, done = stratego.calc_reward(len(actions))
+        #stratego.print_board(stratego.board)
         if(done):
             if(stratego.turn==1):
                 game_stats[0] += 1
             else:
                 game_stats[1] += 1
-            # Update both p1 & p2
-            stratego.print_board(stratego.board)
+
+            # Send winning and losing rewards to the players
+            stratego.players[stratego.turn].receive_last_reward(reward)        # Reward given to the losing player
+            stratego.players[1-stratego.turn].receive_last_reward(-reward)     # Reward given to the winning player
+            #stratego.print_board(stratego.board)
+            
             break
         
         selected_action = stratego.req_action(actions, reward)
         stratego.update(selected_action)
+
+p2.model.save('model.h5')
 
 print(game_stats/num_games)
